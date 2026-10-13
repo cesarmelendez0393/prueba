@@ -7,6 +7,9 @@
     "android": {
       "package": "com.cesarmelendez.futapp"
     },
+    "splash": {
+      "backgroundColor": "#ffffff"
+    },
     "extra": {
       "eas": {
         "projectId": "e885b517-9074-43f8-9045-c00a6da1ef46"
