@@ -4,8 +4,13 @@
     "slug": "futapp",
     "version": "1.0.0",
     "owner": "cesarmelendez0393s-team",
+    "icon": "./assets/icon.png",
     "android": {
-      "package": "com.cesarmelendez.futapp"
+      "package": "com.cesarmelendez.futapp",
+      "adaptiveIcon": {
+        "foregroundImage": "./assets/adaptive-icon.png",
+        "backgroundColor": "#ffffff"
+      }
     },
     "splash": {
       "backgroundColor": "#ffffff"
