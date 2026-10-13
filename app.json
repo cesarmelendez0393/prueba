@@ -1,0 +1,10 @@
+{
+  "expo": {
+    "name": "AppFutbol",
+    "slug": "prueba",
+    "version": "1.0.0",
+    "android": {
+      "package": "com.cesarmelendez.appfutbol"
+    }
+  }
+}
