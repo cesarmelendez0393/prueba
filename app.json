@@ -3,8 +3,14 @@
     "name": "FutApp",
     "slug": "futapp",
     "version": "1.0.0",
+    "owner": "cesarmelendez0393s-team",
     "android": {
       "package": "com.cesarmelendez.futapp"
+    },
+    "extra": {
+      "eas": {
+        "projectId": "futapp"
+      }
     }
   }
 }
