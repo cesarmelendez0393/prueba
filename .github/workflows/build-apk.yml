@@ -1,4 +1,4 @@
-name: Compilar APK Android
+name: Compilar APK Android (EAS)
 
 on:
   push:
@@ -10,7 +10,7 @@ jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - name: Descargar codigo
+      - name: Descargar código
         uses: actions/checkout@v4
 
       - name: Configurar Node.js
@@ -18,26 +18,10 @@ jobs:
         with:
           node-version: 18
 
-      - name: Configurar Java
-        uses: actions/setup-java@v4
-        with:
-          distribution: 'zulu'
-          java-version: '17'
+      - name: Instalar EAS CLI
+        run: npm install -g eas-cli
 
-      - name: Configurar Android SDK
-        uses: android-actions/setup-android@v3
-
-      - name: Instalar dependencias
-        run: npm install
-
-      - name: Instalar Expo CLI y EAS
-        run: npm install -g expo-cli eas-cli
-
-      - name: Generar APK de prueba
-        run: npx expo run:android --variant release || npx expo export
-
-      - name: Subir APK como artefacto
-        uses: actions/upload-artifact@v4
-        with:
-          name: AppFutbol-APK
-          path: android/app/build/outputs/apk/release/*.apk
+      - name: Compilar APK en Expo EAS
+        env:
+          EXPO_TOKEN: ${{ secrets.EXPO_TOKEN }}
+        run: eas build --platform android --profile preview --non-interactive
