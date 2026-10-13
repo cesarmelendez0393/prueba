@@ -1,10 +1,11 @@
 {
   "expo": {
-    "name": "AppFutbol",
-    "slug": "prueba",
+    "name": "FutApp",
+    "slug": "futapp",
     "version": "1.0.0",
+    "owner": "cesarmelendez0393s-team",
     "android": {
-      "package": "com.cesarmelendez.appfutbol"
+      "package": "com.cesarmelendez.futapp"
     }
   }
 }
