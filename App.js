@@ -10,6 +10,8 @@ import {
   Vibration,
   SafeAreaView
 } from 'react-native';
+import { Audio } from 'expo-av';
+import { useKeepAwake } from 'expo-keep-awake';
 
 export default function App() {
   const [tab, setTab] = useState('marcador');
@@ -26,6 +28,7 @@ export default function App() {
   });
 
   const coloresBase = { E1: '#111827', E2: '#F97316', E3: '#84CC16' };
+  const nombresEquipos = { E1: 'NEGRO', E2: 'NARANJA', E3: 'VERDE' };
 
   const [tiempo, setTiempo] = useState(300);
   const [corriendo, setCorriendo] = useState(false);
@@ -37,6 +40,31 @@ export default function App() {
   const [equiposSorteados, setEquiposSorteados] = useState([]);
   const [numGeneraciones, setNumGeneraciones] = useState(0);
   const [horaGeneracion, setHoraGeneracion] = useState('');
+
+  const [tipoModoSorteo, setTipoModoSorteo] = useState('posiciones');
+
+  // Mantiene la pantalla encendida ÚNICAMENTE cuando el partido está corriendo
+  if (corriendo) {
+    useKeepAwake();
+  }
+
+  // Función para reproducir pito.mp3 N cantidad de veces
+  const reproducirPitido = async (veces = 1) => {
+    try {
+      for (let i = 0; i < veces; i++) {
+        const { sound } = await Audio.Sound.createAsync(
+          require('./assets/pito.mp3')
+        );
+        await sound.playAsync();
+        // Pausa breve entre repeticiones si suena más de 1 vez
+        if (veces > 1 && i < veces - 1) {
+          await new Promise(resolve => setTimeout(resolve, 300));
+        }
+      }
+    } catch (error) {
+      console.log("No se pudo reproducir pito.mp3, usando solo vibración", error);
+    }
+  };
 
   useEffect(() => {
     let timer = null;
@@ -50,12 +78,14 @@ export default function App() {
         setTiempo((prev) => {
           if (prev === 61) {
             setEstadoTiempo('minuto');
-            Vibration.vibrate([0, 400, 200, 400]);
+            Vibration.vibrate([0, 500, 200, 500, 200, 500, 200, 500, 200, 500]); // ~3 segundos de vibración
+            reproducirPitido(1); // Suena 1 vez al faltar 1 minuto
           }
           if (prev <= 1) {
             setCorriendo(false);
             setEstadoTiempo('final');
-            Vibration.vibrate([0, 800, 200, 800]);
+            Vibration.vibrate([0, 1000, 300, 1000, 300, 1000]); // ~3 segundos de vibración fuerte
+            reproducirPitido(2); // Suena 2 veces al finalizar
             return 0;
           }
           return prev - 1;
@@ -134,12 +164,31 @@ export default function App() {
   };
 
   const procesarTextoJugadores = () => {
-    const renglones = textoNombres.split('\n').map(n => n.trim()).filter(n => n.length > 0);
-    if (renglones.length < cantEquipos) {
+    const creados = [];
+
+    textoNombres.split('\n').forEach((linea, idx) => {
+      let limpia = linea.replace(/[\u200B-\u200D\uFEFF]/g, '');
+      limpia = limpia.replace(/^\s*\d+[\.\-\)]\s*/, '');
+
+      const esPortero = limpia.includes('🧤');
+
+      limpia = limpia.replace(/(?!🧤)([\u2700-\u27BF]|[\uE000-\uF8FF]|\uD83C[\uDC00-\uDFFF]|\uD83D[\uDC00-\uDFFF]|[\u2011-\u26FF]|\uD83E[\uDD10-\uDDFF])/g, '');
+      limpia = limpia.replace(/🧤/g, '').trim();
+
+      if (limpia.length > 0) {
+        creados.push({
+          id: idx,
+          nombre: limpia,
+          rol: esPortero ? 'portero' : 'medio'
+        });
+      }
+    });
+
+    if (creados.length < cantEquipos) {
       Alert.alert("Error", `Introduce al menos ${cantEquipos} jugadores para repartir.`);
       return;
     }
-    const creados = renglones.map((nombre, idx) => ({ id: idx, nombre, rol: 'medio' }));
+
     setListaJugadores(creados);
     setPasoPuntaje(2);
   };
@@ -149,24 +198,36 @@ export default function App() {
   };
 
   const realizarSorteoEquilibrado = () => {
-    const porteros = [...listaJugadores.filter(j => j.rol === 'portero')].sort(() => Math.random() - 0.5);
-    const delanteros = [...listaJugadores.filter(j => j.rol === 'delantero')].sort(() => Math.random() - 0.5);
-    const medios = [...listaJugadores.filter(j => j.rol === 'medio')].sort(() => Math.random() - 0.5);
-    const defensas = [...listaJugadores.filter(j => j.rol === 'defensa')].sort(() => Math.random() - 0.5);
-
     const resultado = Array.from({ length: cantEquipos }, () => []);
 
-    const repartirGrupo = (grupo) => {
-      grupo.forEach((jugador, index) => {
+    const porteros = [...listaJugadores.filter(j => j.rol === 'portero')].sort(() => Math.random() - 0.5);
+    porteros.forEach((portero, index) => {
+      const equipoIndex = index % cantEquipos;
+      resultado[equipoIndex].push(portero);
+    });
+
+    if (tipoModoSorteo === 'posiciones') {
+      const delanteros = [...listaJugadores.filter(j => j.rol === 'delantero')].sort(() => Math.random() - 0.5);
+      const medios = [...listaJugadores.filter(j => j.rol === 'medio')].sort(() => Math.random() - 0.5);
+      const defensas = [...listaJugadores.filter(j => j.rol === 'defensa')].sort(() => Math.random() - 0.5);
+
+      const repartirGrupo = (grupo) => {
+        grupo.forEach((jugador, index) => {
+          const equipoIndex = index % cantEquipos;
+          resultado[equipoIndex].push(jugador);
+        });
+      };
+
+      repartirGrupo(delanteros);
+      repartirGrupo(medios);
+      repartirGrupo(defensas);
+    } else {
+      const deCampo = [...listaJugadores.filter(j => j.rol !== 'portero')].sort(() => Math.random() - 0.5);
+      deCampo.forEach((jugador, index) => {
         const equipoIndex = index % cantEquipos;
         resultado[equipoIndex].push(jugador);
       });
-    };
-
-    repartirGrupo(porteros);
-    repartirGrupo(delanteros);
-    repartirGrupo(medios);
-    repartirGrupo(defensas);
+    }
 
     setEquiposSorteados(resultado);
     setNumGeneraciones(prev => prev + 1);
@@ -176,17 +237,15 @@ export default function App() {
   };
 
   const obtenerIconoRol = (rol) => {
-    switch (rol) {
-      case 'portero': return '🧤';
-      case 'delantero': return '⚽';
-      case 'medio': return '⚙️';
-      case 'defensa': return '🛡️';
-      default: return '•';
-    }
+    return rol === 'portero' ? '🧤 ' : '';
   };
 
   return (
     <SafeAreaView style={styles.container}>
+      <View style={styles.appHeader}>
+        <Text style={styles.appTitle}>FutApp</Text>
+      </View>
+
       <View style={styles.navBar}>
         <TouchableOpacity 
           style={[styles.navBtn, tab === 'marcador' && styles.navBtnActive]} 
@@ -253,10 +312,10 @@ export default function App() {
           </View>
 
           <View style={styles.scoreContainer}>
-            {['E1', 'E2', ...(cantEquipos === 3 ? ['E3'] : [])].map((eq, idx) => (
+            {['E1', 'E2', ...(cantEquipos === 3 ? ['E3'] : [])].map((eq) => (
               <View key={eq} style={[styles.teamCard, { borderColor: coloresBase[eq] }]}>
                 <View style={[styles.teamHeader, { backgroundColor: coloresBase[eq] }]}>
-                  <Text style={styles.teamTitle}>EQUIPO {idx + 1}</Text>
+                  <Text style={styles.teamTitle}>{nombresEquipos[eq]}</Text>
                 </View>
                 
                 <Text style={styles.scoreBig}>{puntuacion[eq]}</Text>
@@ -300,7 +359,7 @@ export default function App() {
           {pasoPuntaje === 1 && (
             <ScrollView>
               <View style={styles.configRow}>
-                <Text style={styles.label}>Cantidad de Equipos a Sorterar:</Text>
+                <Text style={styles.label}>Cantidad de Equipos a Sortear:</Text>
                 <View style={styles.btnGroup}>
                   <TouchableOpacity 
                     style={[styles.selectorBtn, cantEquipos === 2 && styles.selectorActive]} 
@@ -327,49 +386,77 @@ export default function App() {
                 onChangeText={setTextoNombres}
               />
               <TouchableOpacity style={styles.btnMain} onPress={procesarTextoJugadores}>
-                <Text style={styles.btnMainText}>CONTINUAR (ASIGNAR POSICIONES)</Text>
+                <Text style={styles.btnMainText}>CONTINUAR (ASIGNAR ROLES)</Text>
               </TouchableOpacity>
             </ScrollView>
           )}
 
           {pasoPuntaje === 2 && (
             <View style={{ flex: 1 }}>
-              <Text style={styles.label}>Asigna la posición de cada jugador:</Text>
+              <View style={styles.configRow}>
+                <Text style={styles.label}>Modo de Sorteo:</Text>
+                <View style={styles.btnGroup}>
+                  <TouchableOpacity 
+                    style={[styles.selectorBtn, tipoModoSorteo === 'posiciones' && styles.selectorActive]} 
+                    onPress={() => setTipoModoSorteo('posiciones')}
+                  >
+                    <Text style={[styles.selectorText, tipoModoSorteo === 'posiciones' && styles.selectorTextActive]}>Por Posiciones</Text>
+                  </TouchableOpacity>
+                  <TouchableOpacity 
+                    style={[styles.selectorBtn, tipoModoSorteo === 'aleatorio' && styles.selectorActive]} 
+                    onPress={() => setTipoModoSorteo('aleatorio')}
+                  >
+                    <Text style={[styles.selectorText, tipoModoSorteo === 'aleatorio' && styles.selectorTextActive]}>Total Aleatorio</Text>
+                  </TouchableOpacity>
+                </View>
+              </View>
+
+              <Text style={styles.label}>
+                {tipoModoSorteo === 'posiciones' 
+                  ? "Asigna la posición de cada jugador (Marca porteros obligatorios):" 
+                  : "Marca únicamente a los Porteros (el resto se mezclará al azar):"}
+              </Text>
+
               <ScrollView style={styles.listContainer}>
                 {listaJugadores.map((j) => (
                   <View key={j.id} style={styles.playerRowPos}>
-                    <Text style={styles.playerNamePos}>{j.nombre}</Text>
+                    <Text style={styles.playerNamePos}>{obtenerIconoRol(j.rol)}{j.nombre}</Text>
                     <View style={styles.posBtnRow}>
                       <TouchableOpacity 
                         style={[styles.posBtn, j.rol === 'portero' && styles.posActivePortero]}
                         onPress={() => cambiarRolJugador(j.id, 'portero')}
                       >
-                        <Text style={[styles.posText, j.rol === 'portero' && styles.posTextActive]}>Por</Text>
+                        <Text style={[styles.posText, j.rol === 'portero' && styles.posTextActive]}>Portero</Text>
                       </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.posBtn, j.rol === 'delantero' && styles.posActiveDelantero]}
-                        onPress={() => cambiarRolJugador(j.id, 'delantero')}
-                      >
-                        <Text style={[styles.posText, j.rol === 'delantero' && styles.posTextActive]}>Del</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.posBtn, j.rol === 'medio' && styles.posActiveMedio]}
-                        onPress={() => cambiarRolJugador(j.id, 'medio')}
-                      >
-                        <Text style={[styles.posText, j.rol === 'medio' && styles.posTextActive]}>Med</Text>
-                      </TouchableOpacity>
-                      <TouchableOpacity 
-                        style={[styles.posBtn, j.rol === 'defensa' && styles.posActiveDefensa]}
-                        onPress={() => cambiarRolJugador(j.id, 'defensa')}
-                      >
-                        <Text style={[styles.posText, j.rol === 'defensa' && styles.posTextActive]}>Def</Text>
-                      </TouchableOpacity>
+
+                      {tipoModoSorteo === 'posiciones' && (
+                        <>
+                          <TouchableOpacity 
+                            style={[styles.posBtn, j.rol === 'delantero' && styles.posActiveDelantero]}
+                            onPress={() => cambiarRolJugador(j.id, 'delantero')}
+                          >
+                            <Text style={[styles.posText, j.rol === 'delantero' && styles.posTextActive]}>Del</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.posBtn, j.rol === 'medio' && styles.posActiveMedio]}
+                            onPress={() => cambiarRolJugador(j.id, 'medio')}
+                          >
+                            <Text style={[styles.posText, j.rol === 'medio' && styles.posTextActive]}>Med</Text>
+                          </TouchableOpacity>
+                          <TouchableOpacity 
+                            style={[styles.posBtn, j.rol === 'defensa' && styles.posActiveDefensa]}
+                            onPress={() => cambiarRolJugador(j.id, 'defensa')}
+                          >
+                            <Text style={[styles.posText, j.rol === 'defensa' && styles.posTextActive]}>Def</Text>
+                          </TouchableOpacity>
+                        </>
+                      )}
                     </View>
                   </View>
                 ))}
               </ScrollView>
               <TouchableOpacity style={styles.btnMain} onPress={realizarSorteoEquilibrado}>
-                <Text style={styles.btnMainText}>GENERAR SORTEO EQUILIBRADO</Text>
+                <Text style={styles.btnMainText}>GENERAR SORTEO</Text>
               </TouchableOpacity>
             </View>
           )}
@@ -380,7 +467,7 @@ export default function App() {
                 <Text style={styles.antiCheatTitle}>
                   {numGeneraciones === 1 ? "✅ SORTEO OFICIAL #1" : `⚠️ SORTEO GENERADO ${numGeneraciones} VECES`}
                 </Text>
-                <Text style={styles.antiCheatSub}>Hora exacta: {horaGeneracion} ({cantEquipos} Equipos Equilibrados)</Text>
+                <Text style={styles.antiCheatSub}>Hora exacta: {horaGeneracion} ({cantEquipos} Equipos)</Text>
               </View>
 
               <View style={styles.teamsGrid}>
@@ -388,10 +475,10 @@ export default function App() {
                   const claveEq = i === 0 ? 'E1' : i === 1 ? 'E2' : 'E3';
                   return (
                     <View key={i} style={[styles.teamCol, { backgroundColor: coloresBase[claveEq] }]}>
-                      <Text style={styles.teamColTitle}>EQUIPO {i + 1}</Text>
+                      <Text style={styles.teamColTitle}>{nombresEquipos[claveEq]}</Text>
                       {eq.map((j, idx) => (
                         <Text key={idx} style={styles.teamColPlayer}>
-                          {obtenerIconoRol(j.rol)} {j.nombre}
+                          {idx + 1}- {obtenerIconoRol(j.rol)}{j.nombre}
                         </Text>
                       ))}
                     </View>
@@ -427,11 +514,11 @@ export default function App() {
             </View>
 
             <View style={styles.teamsGrid}>
-              {['E1', 'E2', ...(cantEquipos === 3 ? ['E3'] : [])].map((eq, i) => {
+              {['E1', 'E2', ...(cantEquipos === 3 ? ['E3'] : [])].map((eq) => {
                 const totalJugadosEquipo = statsEquipos[eq].victorias + statsEquipos[eq].empates;
                 return (
                   <View key={eq} style={[styles.teamCol, { backgroundColor: coloresBase[eq] }]}>
-                    <Text style={styles.teamColTitle}>EQUIPO {i + 1}</Text>
+                    <Text style={styles.teamColTitle}>{nombresEquipos[eq]}</Text>
                     <Text style={styles.resumenStatText}>🏆 Puntos: {puntuacion[eq]}</Text>
                     <Text style={styles.resumenStatText}>🥇 Victorias (+3): {statsEquipos[eq].victorias}</Text>
                     <Text style={styles.resumenStatText}>🤝 Empates (+1): {statsEquipos[eq].empates}</Text>
@@ -453,7 +540,9 @@ export default function App() {
 
 const styles = StyleSheet.create({
   container: { flex: 1, backgroundColor: '#F4F6F8' },
-  navBar: { flexDirection: 'row', backgroundColor: '#111827', paddingTop: 40 },
+  appHeader: { backgroundColor: '#111827', paddingTop: 10, paddingBottom: 5, alignItems: 'center' },
+  appTitle: { color: '#84CC16', fontSize: 22, fontWeight: 'bold', letterSpacing: 1 },
+  navBar: { flexDirection: 'row', backgroundColor: '#111827' },
   navBtn: { flex: 1, padding: 12, alignItems: 'center' },
   navBtnActive: { borderBottomWidth: 3, borderBottomColor: '#84CC16' },
   navText: { color: '#FFF', fontWeight: 'bold', fontSize: 11 },
