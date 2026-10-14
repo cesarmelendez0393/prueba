@@ -46,12 +46,12 @@ export default function App() {
   // Mantiene la pantalla encendida de forma segura usando el hook nativo
   useKeepAwake();
 
-  // Función para reproducir Pito.mp3 N cantidad de veces
+  // Función para reproducir pito.mp3 N cantidad de veces
   const reproducirPitido = async (veces = 1) => {
     try {
       for (let i = 0; i < veces; i++) {
         const { sound } = await Audio.Sound.createAsync(
-          require('./assets/Pito.mp3')
+          require('./assets/pito.mp3')
         );
         await sound.playAsync();
         if (veces > 1 && i < veces - 1) {
@@ -59,7 +59,7 @@ export default function App() {
         }
       }
     } catch (error) {
-      console.log("No se pudo reproducir Pito.mp3, usando solo vibración", error);
+      console.log("No se pudo reproducir pito.mp3, usando solo vibración", error);
     }
   };
 
@@ -190,11 +190,9 @@ export default function App() {
     setPasoPuntaje(2);
   };
 
-  // Permite deseleccionar la posición actual o alternar entre ellas limpiamente
   const cambiarRolJugador = (id, nuevoRol) => {
     setListaJugadores(prev => prev.map(j => {
       if (j.id === id) {
-        // Si vuelve a tocar el mismo botón que ya tenía activo, lo regresa a 'medio' (sin rol fijo)
         const rolFinal = j.rol === nuevoRol ? 'medio' : nuevoRol;
         return { ...j, rol: rolFinal };
       }
