@@ -43,26 +43,23 @@ export default function App() {
 
   const [tipoModoSorteo, setTipoModoSorteo] = useState('posiciones');
 
-  // Mantiene la pantalla encendida ÚNICAMENTE cuando el partido está corriendo
-  if (corriendo) {
-    useKeepAwake();
-  }
+  // Mantiene la pantalla encendida de forma segura usando el hook nativo
+  useKeepAwake();
 
-  // Función para reproducir pito.mp3 N cantidad de veces
+  // Función para reproducir Pito.mp3 N cantidad de veces
   const reproducirPitido = async (veces = 1) => {
     try {
       for (let i = 0; i < veces; i++) {
         const { sound } = await Audio.Sound.createAsync(
-          require('./assets/pito.mp3')
+          require('./assets/Pito.mp3')
         );
         await sound.playAsync();
-        // Pausa breve entre repeticiones si suena más de 1 vez
         if (veces > 1 && i < veces - 1) {
           await new Promise(resolve => setTimeout(resolve, 300));
         }
       }
     } catch (error) {
-      console.log("No se pudo reproducir pito.mp3, usando solo vibración", error);
+      console.log("No se pudo reproducir Pito.mp3, usando solo vibración", error);
     }
   };
 
@@ -78,13 +75,13 @@ export default function App() {
         setTiempo((prev) => {
           if (prev === 61) {
             setEstadoTiempo('minuto');
-            Vibration.vibrate([0, 500, 200, 500, 200, 500, 200, 500, 200, 500]); // ~3 segundos de vibración
+            Vibration.vibrate([0, 500, 200, 500, 200, 500, 200, 500, 200, 500]);
             reproducirPitido(1); // Suena 1 vez al faltar 1 minuto
           }
           if (prev <= 1) {
             setCorriendo(false);
             setEstadoTiempo('final');
-            Vibration.vibrate([0, 1000, 300, 1000, 300, 1000]); // ~3 segundos de vibración fuerte
+            Vibration.vibrate([0, 1000, 300, 1000, 300, 1000]);
             reproducirPitido(2); // Suena 2 veces al finalizar
             return 0;
           }
@@ -193,8 +190,16 @@ export default function App() {
     setPasoPuntaje(2);
   };
 
+  // Permite deseleccionar la posición actual o alternar entre ellas limpiamente
   const cambiarRolJugador = (id, nuevoRol) => {
-    setListaJugadores(prev => prev.map(j => j.id === id ? { ...j, rol: nuevoRol } : j));
+    setListaJugadores(prev => prev.map(j => {
+      if (j.id === id) {
+        // Si vuelve a tocar el mismo botón que ya tenía activo, lo regresa a 'medio' (sin rol fijo)
+        const rolFinal = j.rol === nuevoRol ? 'medio' : nuevoRol;
+        return { ...j, rol: rolFinal };
+      }
+      return j;
+    }));
   };
 
   const realizarSorteoEquilibrado = () => {
@@ -385,9 +390,14 @@ export default function App() {
                 value={textoNombres}
                 onChangeText={setTextoNombres}
               />
-              <TouchableOpacity style={styles.btnMain} onPress={procesarTextoJugadores}>
-                <Text style={styles.btnMainText}>CONTINUAR (ASIGNAR ROLES)</Text>
-              </TouchableOpacity>
+              <View style={styles.screenActionRow}>
+                <TouchableOpacity style={styles.btnMain} onPress={procesarTextoJugadores}>
+                  <Text style={styles.btnMainText}>CONTINUAR (ASIGNAR ROLES)</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.btnSecDanger} onPress={() => setTextoNombres('')}>
+                  <Text style={styles.btnSecText}>LIMPIAR TEXTO</Text>
+                </TouchableOpacity>
+              </View>
             </ScrollView>
           )}
 
@@ -413,8 +423,8 @@ export default function App() {
 
               <Text style={styles.label}>
                 {tipoModoSorteo === 'posiciones' 
-                  ? "Asigna la posición de cada jugador (Marca porteros obligatorios):" 
-                  : "Marca únicamente a los Porteros (el resto se mezclará al azar):"}
+                  ? "Asigna la posición de cada jugador (Toca de nuevo para desmarcar):" 
+                  : "Marca únicamente a los Porteros (Toca de nuevo para desmarcar):"}
               </Text>
 
               <ScrollView style={styles.listContainer}>
@@ -455,9 +465,14 @@ export default function App() {
                   </View>
                 ))}
               </ScrollView>
-              <TouchableOpacity style={styles.btnMain} onPress={realizarSorteoEquilibrado}>
-                <Text style={styles.btnMainText}>GENERAR SORTEO</Text>
-              </TouchableOpacity>
+              <View style={styles.screenActionRow}>
+                <TouchableOpacity style={styles.btnMain} onPress={realizarSorteoEquilibrado}>
+                  <Text style={styles.btnMainText}>GENERAR SORTEO</Text>
+                </TouchableOpacity>
+                <TouchableOpacity style={styles.btnSec} onPress={() => setPasoPuntaje(1)}>
+                  <Text style={styles.btnSecText}>VOLVER</Text>
+                </TouchableOpacity>
+              </View>
             </View>
           )}
 
@@ -579,7 +594,7 @@ const styles = StyleSheet.create({
   btnResetAll: { backgroundColor: '#4B5563', padding: 10, borderRadius: 8, alignItems: 'center', marginBottom: 20 },
   btnResetAllText: { color: '#FFF', fontWeight: 'bold', fontSize: 11 },
   textArea: { backgroundColor: '#FFF', borderRadius: 8, padding: 12, borderWidth: 1, borderColor: '#D1D5DB', textAlignVertical: 'top', marginBottom: 15 },
-  btnMain: { backgroundColor: '#111827', padding: 15, borderRadius: 8, alignItems: 'center' },
+  btnMain: { backgroundColor: '#111827', padding: 15, borderRadius: 8, alignItems: 'center', flex: 2 },
   btnMainText: { color: '#FFF', fontWeight: 'bold', fontSize: 15 },
   listContainer: { flex: 1, marginBottom: 15 },
   playerRowPos: { flexDirection: 'column', backgroundColor: '#FFF', padding: 10, borderRadius: 6, marginBottom: 8, borderWidth: 1, borderColor: '#E5E7EB' },
@@ -604,6 +619,7 @@ const styles = StyleSheet.create({
   teamColTitle: { color: '#FFF', fontWeight: 'bold', fontSize: 12, marginBottom: 6, textAlign: 'center', borderBottomWidth: 1, borderBottomColor: 'rgba(255,255,255,0.3)', paddingBottom: 3 },
   teamColPlayer: { color: '#FFF', fontSize: 11, marginVertical: 2, fontWeight: '500' },
   screenActionRow: { flexDirection: 'row', gap: 8 },
-  btnSec: { flex: 1, backgroundColor: '#374151', padding: 10, borderRadius: 6, alignItems: 'center' },
+  btnSec: { flex: 1, backgroundColor: '#374151', padding: 15, borderRadius: 8, alignItems: 'center' },
+  btnSecDanger: { flex: 1, backgroundColor: '#DC2626', padding: 15, borderRadius: 8, alignItems: 'center' },
   btnSecText: { color: '#FFF', fontWeight: 'bold', fontSize: 12 }
 });
